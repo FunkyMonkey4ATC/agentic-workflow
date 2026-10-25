@@ -7,6 +7,8 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT"
 export HF_HOME="${HF_HOME:-/home/dell/hf}"
 export HF_HUB_OFFLINE=1 TRANSFORMERS_OFFLINE=1
+# Optional secrets / overrides (SLACK_WEBHOOK_URL or SLACK_BOT_TOKEN + SLACK_CHANNEL, GATEWAY_URL, ...). Not committed.
+if [[ -f "$ROOT/.env" ]]; then set -a; . "$ROOT/.env"; set +a; fi
 LOGS="$HF_HOME/logs"; mkdir -p "$LOGS" data/clips data/outbox
 PY="$ROOT/.venv/bin/python"
 
@@ -16,9 +18,12 @@ LLAMA_BIN="${LLAMA_BIN:-/home/dell/llama.cpp/build/bin/llama-server}"
 FAST_GGUF="${FAST_GGUF:-$(ls "$HF_HOME"/hub/models--unsloth--Qwen3-4B-Instruct-2507-GGUF/snapshots/*/Qwen3-4B-Instruct-2507-Q8_0.gguf 2>/dev/null | head -1 || true)}"
 REASON_GGUF="${REASON_GGUF:-$(ls "$HF_HOME"/hub/models--*gpt-oss-20b*/snapshots/*/*.gguf 2>/dev/null | head -1 || true)}"
 
+# tmux sessions inherit the tmux SERVER's environment, not this shell's, so the environment
+# (offline flags + .env secrets) is established inside each session command.
+ENV_PREFIX="export HF_HOME='$HF_HOME' HF_HUB_OFFLINE=1 TRANSFORMERS_OFFLINE=1; if [[ -f '$ROOT/.env' ]]; then set -a; . '$ROOT/.env'; set +a; fi;"
 session() { # name, command
   if tmux has-session -t "$1" 2>/dev/null; then echo "  [skip] $1 already running"; return; fi
-  tmux new -d -s "$1" "cd $ROOT; $2 2>&1 | tee -a $LOGS/$1.log"; echo "  [start] $1"
+  tmux new -d -s "$1" "bash -c \"cd '$ROOT'; $ENV_PREFIX $2 2>&1 | tee -a '$LOGS/$1.log'\""; echo "  [start] $1"
 }
 
 start_models() {

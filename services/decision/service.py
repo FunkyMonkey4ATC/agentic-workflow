@@ -225,11 +225,31 @@ async def on_track(ev: Dict[str, Any]) -> None:
         world.landings[cs].cleared_of_runway = True
     rwy = d.get("on_runway")
     if rwy and not d.get("simulated_noise"):
-        ok = cs in world.landings and world.landings[cs].runway == rwy
-        ok = ok or any(e["callsign"] == cs and e["runway"] == rwy and time.monotonic() - e["t_wall"] < LANDING_WINDOW_S for e in world.runway_entries)
-        if not ok:
-            metrics["rule_hits"] += 1
-            await publish_alert("unauthorized_runway_entry", rwy, [cs], {"position": d, "simulated": d.get("simulated", False)}, "confirmed", "critical", None, time.monotonic())
+        if not has_runway_clearance(cs, rwy):
+            # Deterministic grace: the matching clearance may still be in the parser (1-2 s). Re-check once,
+            # then alert. Trades ~2.5 s of latency on true incursions for far fewer false alerts.
+            asyncio.create_task(recheck_incursion(cs, rwy, d, time.monotonic()))
+
+
+def has_runway_clearance(cs: str, rwy: str) -> bool:
+    if cs in world.landings and world.landings[cs].runway == rwy:
+        return True
+    return any(e["callsign"] == cs and e["runway"] == rwy and time.monotonic() - e["t_wall"] < LANDING_WINDOW_S for e in world.runway_entries)
+
+
+R2_GRACE_S = float(os.environ.get("DECISION_R2_GRACE_S", "2.5"))
+
+
+async def recheck_incursion(cs: str, rwy: str, d: Dict[str, Any], t0: float) -> None:
+    await asyncio.sleep(R2_GRACE_S)
+    if has_runway_clearance(cs, rwy):
+        return
+    latest = world.tracks.get(cs) or {}
+    if latest.get("on_runway") != rwy:
+        return  # it left the runway during the grace window
+    metrics["rule_hits"] += 1
+    await publish_alert("unauthorized_runway_entry", rwy, [cs], {"position": d, "simulated": d.get("simulated", False), "grace_s": R2_GRACE_S},
+                        "confirmed", "critical", None, t0)
 
 
 async def on_weather(ev: Dict[str, Any]) -> None:

@@ -74,7 +74,7 @@ class Outbox:
         async with self._lock:
             rec = self.load(iid)
             for m in reversed(rec["messages"]):
-                if m["kind"] == kind and m["status"] == "pending":
+                if m["kind"] == kind and m["status"] in ("pending", "failed"):
                     m["text"] = text
                     self.save(rec)
                     return True

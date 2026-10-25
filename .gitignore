@@ -4,3 +4,4 @@ data/outbox/
 data/events.jsonl
 __pycache__/
 *.pyc
+.env
