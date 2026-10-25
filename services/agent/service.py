@@ -60,7 +60,10 @@ async def write_up(a: Dict[str, Any]) -> None:
               f"Radio calls (evidence):\n" + "\n".join(f"- {c.get('t')}: \"{c.get('text')}\" (clip {c.get('audio')})" for c in calls) +
               f"\nPositions: {json.dumps(evidence.get('positions'))[:400]}\nWeather: {json.dumps(evidence.get('weather'))[:300]}\n"
               f"Audio clip for this alert: {a.get('audio')}")
-    body = {"model": "reason", "temperature": 0.2, "max_tokens": 220,
+    body = {"model": "reason", "temperature": 0.2, "max_tokens": 1200,
+            # gpt-oss (harmony) spends tokens in a reasoning channel first; keep effort low and
+            # the budget generous or the final channel comes back empty. Ignored by non-harmony models.
+            "chat_template_kwargs": {"reasoning_effort": "low"},
             "messages": [{"role": "system", "content": WRITER_SYSTEM}, {"role": "user", "content": prompt}]}
     t0 = time.monotonic()
     try:
@@ -68,7 +71,10 @@ async def write_up(a: Dict[str, Any]) -> None:
                             headers={"X-Priority": "P2", "X-Coalesce-Key": iid, "X-Timeout-S": "60"})
         if r.status_code >= 400:
             raise RuntimeError(f"reason unavailable ({r.status_code})")
-        text = r.json()["choices"][0]["message"]["content"].strip()
+        msg = r.json()["choices"][0]["message"]
+        text = (msg.get("content") or "").strip() or (msg.get("reasoning_content") or "").strip()[:600]
+        if not text:
+            raise RuntimeError("empty completion")
         backend = r.json().get("gateway", {}).get("backend")
     except Exception as e:  # noqa: BLE001
         metrics["writeup_degraded"] += 1
@@ -163,9 +169,12 @@ async def ask(body: Dict[str, Any]) -> Dict[str, Any]:
     msgs = [{"role": "system", "content": "You answer questions about a tower radio log for LaGuardia. Quote timestamps and callsigns from the log. If the log does not contain the answer, say so."},
             {"role": "user", "content": "Radio log:\n" + "\n".join(lines) + f"\n\nQuestion: {q}"}]
     t0 = time.monotonic()
-    rr = await http.post(GATEWAY_URL + "/v1/chat/completions", json={"model": "reason", "messages": msgs, "temperature": 0.1, "max_tokens": 250},
+    rr = await http.post(GATEWAY_URL + "/v1/chat/completions",
+                         json={"model": "reason", "messages": msgs, "temperature": 0.1, "max_tokens": 1200,
+                               "chat_template_kwargs": {"reasoning_effort": "low"}},
                          headers={"X-Priority": "P3", "X-Timeout-S": "60"})
     if rr.status_code >= 400:
         return {"degraded": True, "status": rr.status_code, "detail": rr.text[:200]}
-    return {"answer": rr.json()["choices"][0]["message"]["content"].strip(), "ms": round((time.monotonic() - t0) * 1000),
+    m = rr.json()["choices"][0]["message"]
+    return {"answer": ((m.get("content") or "").strip() or (m.get("reasoning_content") or "").strip()), "ms": round((time.monotonic() - t0) * 1000),
             "backend": rr.json().get("gateway", {}).get("backend"), "log_lines": len(lines)}

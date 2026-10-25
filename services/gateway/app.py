@@ -104,7 +104,11 @@ async def get_health() -> Dict[str, Any]:
 
 @app.get("/v1/models")
 async def list_models() -> Dict[str, Any]:
-    return {"object": "list", "data": [{"id": c, "object": "model", "owned_by": "ground-truth"} for c in cfg["capabilities"]]}
+    # GATEWAY_MODELS=reason  -> advertise only that capability (NemoClaw's vLLM detection
+    # takes the first listed model and requires it to match NEMOCLAW_MODEL).
+    only = [m for m in os.environ.get("GATEWAY_MODELS", "").split(",") if m]
+    caps = [c for c in cfg["capabilities"] if not only or c in only]
+    return {"object": "list", "data": [{"id": c, "object": "model", "owned_by": "ground-truth"} for c in caps]}
 
 
 @app.post("/v1/chat/completions")
@@ -130,6 +134,7 @@ async def chat_completions(request: Request,
         if r.status_code >= 400:
             raise HTTPException(r.status_code, r.text[:500])
         out = r.json()
+        out["model"] = capability  # callers (and NemoClaw's identity check) see the capability name, not the backend id
         out["gateway"] = {"capability": capability, "backend": name, "fallback": used_fallback}
         return out
 
