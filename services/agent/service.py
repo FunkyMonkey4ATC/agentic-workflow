@@ -1,16 +1,14 @@
 """Incident / reporting agent on :9200 — plain Python, no agent framework (FMK-14 core).
 
-On `alert` (state=confirmed): the template text goes to the durable outbox immediately (P0 text,
-no model). Then an async `reason` call (P2, coalesced per incident) writes the grounded
-what/where/why with the audio clip and radio-log evidence; if the first message is still
-pending it is upgraded in place, otherwise a threaded follow-up is queued. Uncertain/candidate
-alerts are recorded for the dashboard but not auto-posted as confirmed.
-
-Slack delivery is handled by the outbox loop: posts when online, keeps everything when offline,
-flushes on reconnect (at-least-once + duplicate suppression).
+On `alert` (state=confirmed): the template text is recorded in the durable local outbox
+immediately (P0 text, no model). Then an async `reason` call (P2, coalesced per incident)
+writes the grounded what/where/why with the audio clip and radio-log evidence and upgrades
+the outbox record in place. Uncertain/candidate alerts are kept for the dashboard but never
+recorded as confirmed. The outbox is the authoritative alert log; the dashboard reads it
+via GET /outbox. No external delivery (Slack was removed by team decision 2026-10-25).
 
 POST /ask {"question": "When was the truck cleared to cross runway 4?"}  -> P3 `reason` over the radio log
-GET  /outbox   GET /health   POST /outbox/flush
+GET  /outbox   GET /alerts   GET /health
 """
 from __future__ import annotations
 
@@ -29,7 +27,6 @@ from services.outbox.store import Outbox
 
 GATEWAY_URL = os.environ.get("GATEWAY_URL", "http://127.0.0.1:4000")
 HUB_URL = os.environ.get("HUB_URL", "http://127.0.0.1:7000")
-FLUSH_EVERY_S = float(os.environ.get("OUTBOX_FLUSH_EVERY_S", "5"))
 
 app = FastAPI(title="Ground Truth incident agent")
 bus = Bus()
@@ -43,13 +40,12 @@ Format exactly three labelled lines: WHAT: ... WHERE: ... WHY: ...  then one lin
 Use only the evidence given. Never invent callsigns, runways or times. Plain language, no markdown headers, under 90 words."""
 
 
-def slack_text(a: Dict[str, Any], body: str, enriched: bool) -> str:
-    tag = {"critical": ":rotating_light:", "high": ":warning:", "uncertain": ":grey_question:"}.get(a.get("severity"), ":information_source:")
-    sim = " _(simulated)_" if a.get("evidence", {}).get("simulated") else ""
-    head = f"{tag} *{a['title']}*{sim} — {a.get('severity', '').upper()} · {a.get('state')}"
-    src = f"\nclip: `{a['audio']}`" if a.get("audio") else ""
-    foot = "" if enriched else "\n_initial alert from rules; explanation follows_"
-    return f"{head}\n{body}{src}\n`{a['incident_id']}`{foot}"
+def alert_text(a: Dict[str, Any], body: str, enriched: bool) -> str:
+    sim = " (simulated)" if a.get("evidence", {}).get("simulated") else ""
+    head = f"{a['title']}{sim} — {a.get('severity', '').upper()} · {a.get('state')}"
+    src = f"\nclip: {a['audio']}" if a.get("audio") else ""
+    foot = "" if enriched else "\n[initial alert from rules; explanation follows]"
+    return f"{head}\n{body}{src}\n{a['incident_id']}{foot}"
 
 
 async def write_up(a: Dict[str, Any]) -> None:
@@ -84,9 +80,9 @@ async def write_up(a: Dict[str, Any]) -> None:
     metrics["writeup_ms"].append(ms); metrics["writeups"] += 1
     a["explanation"] = text
     await bus.publish(make_event("alert.update", "agent", {"incident_id": iid, "body": text, "enriched_by": "reason", "backend": backend, "writeup_ms": ms}))
-    upgraded = await outbox.replace_pending_body(iid, "alert", slack_text(a, text, True))
+    upgraded = await outbox.replace_pending_body(iid, "alert", alert_text(a, text, True))
     if not upgraded:
-        await outbox.enqueue(iid, f"*Explanation*\n{text}", kind="followup", dedupe_key=f"{iid}:writeup")
+        await outbox.enqueue(iid, f"Explanation\n{text}", kind="followup", dedupe_key=f"{iid}:writeup")
 
 
 async def on_alert(ev: Dict[str, Any]) -> None:
@@ -96,7 +92,7 @@ async def on_alert(ev: Dict[str, Any]) -> None:
     if a.get("state") != "confirmed":
         return  # candidates / uncertain: dashboard only, never auto-posted as confirmed
     metrics["confirmed"] += 1
-    await outbox.enqueue(a["incident_id"], slack_text(a, a["body"], False), kind="alert", dedupe_key=f"{a['incident_id']}:alert")
+    await outbox.enqueue(a["incident_id"], alert_text(a, a["body"], False), kind="alert", dedupe_key=f"{a['incident_id']}:alert")
     asyncio.create_task(write_up(a))
 
 
@@ -115,20 +111,10 @@ async def consume() -> None:
             print("[agent] error", e, flush=True)
 
 
-async def flush_loop() -> None:
-    await outbox.reconcile()
-    while True:
-        res = await outbox.flush_once()
-        if res.get("delivered"):
-            await bus.publish(make_event("outbox.flushed", "agent", res))
-        await asyncio.sleep(FLUSH_EVERY_S)
-
-
 @app.on_event("startup")
 async def _start() -> None:
     asyncio.create_task(consume())
-    asyncio.create_task(flush_loop())
-    print(f"[agent] gateway={GATEWAY_URL} hub={HUB_URL} slack_sink={outbox.sink()}", flush=True)
+    print(f"[agent] gateway={GATEWAY_URL} hub={HUB_URL} outbox=local-only", flush=True)
 
 
 @app.get("/health")
@@ -139,11 +125,6 @@ async def health() -> Dict[str, Any]:
 @app.get("/outbox")
 async def get_outbox() -> List[Dict[str, Any]]:
     return outbox.all_records()
-
-
-@app.post("/outbox/flush")
-async def flush_now() -> Dict[str, Any]:
-    return await outbox.flush_once()
 
 
 @app.get("/alerts")

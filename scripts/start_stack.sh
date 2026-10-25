@@ -7,7 +7,7 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT"
 export HF_HOME="${HF_HOME:-/home/dell/hf}"
 export HF_HUB_OFFLINE=1 TRANSFORMERS_OFFLINE=1
-# Optional secrets / overrides (SLACK_WEBHOOK_URL or SLACK_BOT_TOKEN + SLACK_CHANNEL, GATEWAY_URL, ...). Not committed.
+# Optional overrides (GATEWAY_URL, decision thresholds, ...). Not committed.
 if [[ -f "$ROOT/.env" ]]; then set -a; . "$ROOT/.env"; set +a; fi
 LOGS="$HF_HOME/logs"; mkdir -p "$LOGS" data/clips data/outbox
 PY="$ROOT/.venv/bin/python"

@@ -31,7 +31,7 @@ backend -> `503 {"degraded": true}` (caller renders its template). JSON-schema o
 | 9100 | `services/asr` | audio -> provisional/final `transcript.segment`; keyword `candidate`; `POST /replay`, `/transcribe`, `/inject` (typed transcript) |
 | — | `services/parser` | final segment -> FMK-7 `clearance` JSON via `fast` (schema-constrained) |
 | — | `services/decision` | deterministic state machine: R1 occupied-runway clearance, R2 unauthorized entry (2.5 s grace), R3 weather minima; template alert first, `fast` enrichment after (may raise, never suppress) |
-| 9200 | `services/agent` | incident/reporting: outbox -> Slack (at-least-once + duplicate suppression), `reason` write-up, `POST /ask` radio-log Q&A |
+| 9200 | `services/agent` | incident/reporting: durable local outbox (`GET /outbox`, duplicate-suppressed), `reason` write-up upgrades the record in place, `POST /ask` radio-log Q&A |
 
 Start/stop everything (each component in a tmux session, logs in `$HF_HOME/logs`):
 
@@ -41,8 +41,8 @@ scripts/start_stack.sh stop
 tmux attach -t llama-fast          # inspect a component
 ```
 
-Secrets go in `.env` (not committed): `SLACK_WEBHOOK_URL=...` or `SLACK_BOT_TOKEN=... SLACK_CHANNEL=...`.
-Without either, alerts stay in `data/outbox/` (the offline demo) and flush when configured/online.
+Alerts are recorded in `data/outbox/` (one JSON file per incident) — the authoritative, restart-safe
+alert log the dashboard reads. There is no external delivery (Slack was removed by team decision).
 
 ## Event flow
 
@@ -51,11 +51,11 @@ audio -> ASR (:9100) --provisional/final--> hub --final--> parser (fast) --clear
                      \--keyword detector--> candidate ---------------------------------> decision
 connectors (tracks / METAR, simulated or live) ----------------------------------------> decision
 decision: rule hit -> alert(template, P0) -> fast severity (P1, bounded) -> alert.update
-agent:    alert(confirmed) -> outbox -> Slack when online ; reason write-up (P2) upgrades the message
+agent:    alert(confirmed) -> durable outbox ; reason write-up (P2) upgrades the record in place
 ```
 
 Alert states: `candidate` (keyword path, not confirmed), `confirmed` (rule), `uncertain` (stale/missing data).
-Only `confirmed` is posted to Slack; everything is on the bus for the dashboard.
+Only `confirmed` is recorded in the outbox; everything is on the bus for the dashboard.
 
 ## Scenarios, metrics, tests
 
@@ -65,9 +65,9 @@ scripts/scenario.py normal     # routine traffic -> expect 0 alerts (false-alert
 scripts/scenario.py incursion  # vehicle on rwy 4 with no clearance -> R2
 scripts/scenario.py weather    # METAR below minima with landing active -> R3
 scripts/metrics.py --since <seq>   # latencies from the hub log (uses hub recv_ms)
-scripts/mock_slack.py              # local webhook sink; stop/start it to simulate network loss
 curl -s localhost:9100/metrics     # ASR: asr_ms, audio_end -> provisional / final
 curl -s localhost:9200/health      # outbox + agent metrics
+curl -s localhost:9200/outbox      # the durable alert log (one record per incident)
 ```
 
 Measured on the GB10 (2026-10-25, scripted scenarios, Q8_0 4B as both `fast` and `reason`):
@@ -81,7 +81,7 @@ Measured on the GB10 (2026-10-25, scripted scenarios, Q8_0 4B as both `fast` and
 | final transcript -> confirmed alert | ~1.2 s |
 | alert -> reason write-up (Qwen fallback) | 3.3 s |
 | normal-traffic scenario | 0 alerts |
-| outbox offline->online | all flushed, 0 duplicates |
+| duplicate incidents in outbox | 0 (dedupe keys) |
 
 ## Build notes (why llama.cpp, not vLLM)
 
