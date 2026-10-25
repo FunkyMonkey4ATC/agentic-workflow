@@ -1,0 +1,47 @@
+# Capability -> backend mapping. Agents only ever name a capability.
+# Swap a model by editing this file and restarting the gateway; agents are untouched.
+
+backends:
+  qwen4b:
+    kind: openai            # llama-server, OpenAI-compatible /v1/chat/completions
+    url: http://127.0.0.1:8002
+    model: qwen3-4b-instruct-2507
+  gptoss20b:
+    kind: openai
+    url: http://127.0.0.1:8001
+    model: gpt-oss-20b
+  whisper_atc:
+    kind: whispercpp        # whisper.cpp server /inference
+    url: http://127.0.0.1:9000
+
+capabilities:
+  fast:
+    backend: qwen4b
+    fallback: null
+  reason:
+    backend: gptoss20b      # optional; absent until S1 lands
+    fallback: qwen4b        # degradation ladder step: reason -> fast model
+  asr:
+    backend: whisper_atc
+    fallback: null
+
+# Workload scheduler. Separate from capability resolution on purpose.
+# P0 never enters a model queue (rules + templates). P1 = parser traffic.
+# P2 = enrichment / write-ups (coalescing). P3 = Q&A / summaries (best effort).
+scheduler:
+  fast:
+    max_concurrent: 4
+    queue_limits: { P1: 64, P2: 16, P3: 8 }
+    reserved_for_p1: 2        # slots P2/P3 may never take
+    default_timeout_s: 20
+  reason:
+    max_concurrent: 1
+    queue_limits: { P2: 2, P3: 2 }
+    reserved_for_p1: 0
+    coalesce: true            # newer request with same X-Coalesce-Key replaces queued one
+    default_timeout_s: 90
+  asr:
+    max_concurrent: 2
+    queue_limits: { P1: 16, P2: 4 }
+    reserved_for_p1: 1
+    default_timeout_s: 30

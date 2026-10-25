@@ -1,0 +1,92 @@
+[
+ {
+  "file": "atco2/atco2_0000.wav",
+  "text": "Oscar Kilo Papa Mike Bravo descend flight level one hundred level one hundred Oscar Kilo Papa Mike Bravo",
+  "dataset": "jlvdoorn/atco2-asr"
+ },
+ {
+  "file": "atco2/atco2_0001.wav",
+  "text": "Oscar Kilo Kilo Echo Alfa Praha Radar identified climb flight level one hundred IFR flight starts  now time zero five cleared to destination via flight plan route",
+  "dataset": "jlvdoorn/atco2-asr"
+ },
+ {
+  "file": "atco2/atco2_0002.wav",
+  "text": "Ryanair Seven Three Alpha Hotel turn left heading three six zero Ryanair Seven Three Alpha Hotel",
+  "dataset": "jlvdoorn/atco2-asr"
+ },
+ {
+  "file": "atco2/atco2_0003.wav",
+  "text": "Oscar Kilo Kilo Uniform November proceed direct Baltu proceed direct Baltu Oscar Kilo Kilo Uniform November",
+  "dataset": "jlvdoorn/atco2-asr"
+ },
+ {
+  "file": "atco2/atco2_0004.wav",
+  "text": "Oscar Mike Papa turn right heading zero two zero cleared ILS approach runway zero six speed maximum one six zero knots right heading zero two zero cleared ILS approach zero six and maximum one six zero speed confirm I do confirm",
+  "dataset": "jlvdoorn/atco2-asr"
+ },
+ {
+  "file": "atco2/atco2_0005.wav",
+  "text": "good evening Lufthansa Eight Hotel Romeo passing two thousand five hundred climbing five thousand Lufthansa Eight Hotel Romeo  Praha Radar good evening identified climb to flight level one six zero Lufthansa Eight Hotel Romeo climb flight level one six zero",
+  "dataset": "jlvdoorn/atco2-asr"
+ },
+ {
+  "file": "atco2/atco2_0040.wav",
+  "text": "Oscar Kilo Mike Charlie Charlie after the low approach climb straight ahead four thousand feet after approach climb straight ahead four thousand feet Oscar Kilo Mike Charlie Charlie",
+  "dataset": "jlvdoorn/atco2-asr"
+ },
+ {
+  "file": "atco2/atco2_0041.wav",
+  "text": "Oscar Kilo Kilo Kilo Whiskey descend to five thousand feet QNH one zero one six",
+  "dataset": "jlvdoorn/atco2-asr"
+ },
+ {
+  "file": "atco2/atco2_0042.wav",
+  "text": "Sierra Papa Foxtrot Lima Foxtrot contact Wien Radar one two five decimal one seven five good bye",
+  "dataset": "jlvdoorn/atco2-asr"
+ },
+ {
+  "file": "atco2/atco2_0043.wav",
+  "text": "Warsaw Radar Belavia Eight Seven Zero good evening flight level three five zero inbound bigu",
+  "dataset": "jlvdoorn/atco2-asr"
+ },
+ {
+  "file": "atco2/atco2_0044.wav",
+  "text": "Jump Run Eight Zero Three vacate to the left taxi charlie alpha stand western apron",
+  "dataset": "jlvdoorn/atco2-asr"
+ },
+ {
+  "file": "atco2/atco2_0045.wav",
+  "text": "Oscar Kilo Mike Charlie Charlie runway two seven cleared for low approach wind three two zero degrees five knots after low approach continue straight ahead climb to three thousand feet",
+  "dataset": "jlvdoorn/atco2-asr"
+ },
+ {
+  "file": "atco2/atcosim_0000.wav",
+  "text": "contact geneva one two eight decimal one five good bye",
+  "dataset": "jlvdoorn/atcosim"
+ },
+ {
+  "file": "atco2/atcosim_0001.wav",
+  "text": "swissair six six zero romeo contact marseille one two five decimal eight five good bye",
+  "dataset": "jlvdoorn/atcosim"
+ },
+ {
+  "file": "atco2/atcosim_0002.wav",
+  "text": "bonjour luxair five five one identified cleared passeiry torino flight level three three zero",
+  "dataset": "jlvdoorn/atcosim"
+ },
+ {
+  "file": "atco2/atcosim_0003.wav",
+  "text": "lufthansa four seven two three resume own navigation to willisau",
+  "dataset": "jlvdoorn/atcosim"
+ },
+ {
+  "file": "atco2/atcosim_0004.wav",
+  "text": "alitalia two zero one set course direct to torino",
+  "dataset": "jlvdoorn/atcosim"
+ },
+ {
+  "file": "atco2/atcosim_0005.wav",
+  "text": "topswiss four five seven eight climb to flight level three one zero",
+  "dataset": "jlvdoorn/atcosim"
+ }
+]

@@ -1,0 +1,13 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "SeverityAssessment",
+  "description": "Enrichment of a rule-fired conflict. May raise severity or add context; it can never suppress the rule.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["severity", "why", "confidence"],
+  "properties": {
+    "severity": { "type": "string", "enum": ["critical", "high", "non_critical", "uncertain"] },
+    "why": { "type": "string", "maxLength": 300 },
+    "confidence": { "type": "number", "minimum": 0, "maximum": 1 }
+  }
+}

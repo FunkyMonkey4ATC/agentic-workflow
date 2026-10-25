@@ -1,0 +1,6 @@
+.venv/
+data/clips/
+data/outbox/
+data/events.jsonl
+__pycache__/
+*.pyc
